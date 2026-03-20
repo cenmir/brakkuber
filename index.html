@@ -1,5 +1,503 @@
 <!DOCTYPE html>
-<html>
-<head><meta http-equiv="refresh" content="0; url=bråk_kuber.html"></head>
-<body></body>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bråk – roterbar kub</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f0ede6;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px 16px;
+    gap: 12px;
+  }
+  h1 { font-size: 22px; color: #2c2c2c; letter-spacing: 0.5px; }
+  .subtitle { font-size: 13px; color: #999; text-align: center; }
+  #taskInfo { font-size: 15px; color: #666; font-weight: bold; }
+
+  #canvas-wrap {
+    width: 600px;
+    height: 600px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    cursor: grab;
+    position: relative;
+  }
+  #canvas-wrap:active { cursor: grabbing; }
+  canvas { display: block; }
+
+  .drag-hint {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(80,80,80,0.6);
+    background: rgba(255,255,255,0.5);
+    padding: 3px 10px;
+    border-radius: 20px;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  label { font-size: 13px; color: #666; }
+  select {
+    padding: 6px 10px;
+    border-radius: 7px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    background: #fff;
+  }
+  button {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:active { transform: scale(0.97); }
+  .nav-btn { background: #ddd; color: #444; }
+  .nav-btn:hover { background: #c8c8c8; }
+  .primary-btn { background: #3d8ed4; color: white; }
+  .primary-btn:hover { background: #2e7ec4; }
+  .green-btn { background: #27ae60; color: white; }
+  .green-btn:hover { background: #219a52; }
+
+  #answerBox {
+    font-size: 18px;
+    color: #c0392b;
+    font-weight: bold;
+    min-height: 60px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .dots {
+    display: flex;
+    gap: 7px;
+  }
+  .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #ccc;
+    transition: background 0.2s;
+  }
+  .dot.active { background: #3d8ed4; }
+  .dot.done { background: #82c991; }
+
+  .rounding-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .rounding-controls label { font-size: 13px; color: #555; font-weight: bold; }
+  .rounding-controls button {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: normal;
+    border: 2px solid #ccc;
+    background: #fff;
+    color: #555;
+    border-radius: 7px;
+  }
+  .rounding-controls button.active {
+    border-color: #3d8ed4;
+    background: #e8f2fc;
+    color: #2c6faa;
+    font-weight: bold;
+  }
+  .rounding-controls button:hover { border-color: #aaa; }
+
+  .fraction-display {
+    font-size: 22px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0 6px;
+  }
+  .frac-num, .frac-den {
+    display: block;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .frac-line {
+    width: 100%;
+    height: 2px;
+    background: #c0392b;
+    margin: 2px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Bråkkuber</h1>
+<p class="subtitle">Rotera kuben och räkna de blå ytkuberna. Hur stor andel av hela kuben (1 000) är blå?</p>
+
+<div class="toolbar">
+  <label for="numSelect">Antal uppgifter:</label>
+  <select id="numSelect">
+    <option value="5" selected>5</option>
+    <option value="6">6</option>
+    <option value="7">7</option>
+    <option value="8">8</option>
+    <option value="9">9</option>
+    <option value="10">10</option>
+  </select>
+  <button class="green-btn" id="newBtn">Slumpa nya uppgifter</button>
+</div>
+
+<p id="taskInfo">Uppgift 1 / 5</p>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div class="drag-hint">Dra for att rotera</div>
+</div>
+
+<div class="dots" id="dots"></div>
+
+<div class="toolbar">
+  <button class="nav-btn" id="prevBtn">&lt; Foreg</button>
+  <button class="primary-btn" id="showAnsBtn">Visa svar</button>
+  <button class="nav-btn" id="nextBtn">Nasta &gt;</button>
+</div>
+
+<div class="rounding-controls" id="roundingControls" style="display:none;">
+  <label>Avrunda:</label>
+  <button data-round="exact" class="active">Exakt</button>
+  <button data-round="10">Tiondel</button>
+  <button data-round="100">Hundradel</button>
+  <button data-round="1000">Tusendel</button>
+</div>
+
+<div id="answerBox"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Surface cubes ───────────────────────────────────────
+const N = 10;
+const surfacePositions = [];
+for (let z = 0; z < N; z++)
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++)
+      if (x === 0 || x === N-1 || y === 0 || y === N-1 || z === 0 || z === N-1)
+        surfacePositions.push({ x, y, z });
+// surfacePositions.length = 488
+
+// ── Problem generation ──────────────────────────────────
+let tasks = [];
+let currentTask = 0;
+let answerVisible = false;
+let currentRounding = 'exact';
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+function generateTasks(count) {
+  tasks = [];
+  for (let i = 0; i < count; i++) {
+    let colored;
+    // 30% chance: 1–100 or 900–999 (partial single layer, enskilda kuber syns)
+    // 70% chance: 100–900 in multiples of 10 (hela rader)
+    if (Math.random() < 0.3) {
+      // Partial layer at top or bottom
+      if (Math.random() < 0.5) {
+        colored = 1 + Math.floor(Math.random() * 100);       // 1–100
+      } else {
+        colored = 900 + Math.floor(Math.random() * 100);     // 900–999
+      }
+    } else {
+      // Hela tiotal mellan 100 och 900
+      colored = (1 + Math.floor(Math.random() * 80)) * 10;   // 10,20,...,800 → +100 = 110..900
+      colored = (10 + Math.floor(Math.random() * 80)) * 10;  // 100,110,...,890
+    }
+    tasks.push({ colored });
+  }
+}
+
+function formatFraction(num, den) {
+  const g = gcd(Math.abs(num), Math.abs(den));
+  return { n: num / g, d: den / g };
+}
+
+function getAnswerText(task, rounding) {
+  const count = task.colored;
+  const total = 1000;
+
+  if (rounding === 'exact') {
+    const f = formatFraction(count, total);
+    const dec = (count / total).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+    return { frac: f, decimal: dec, original: { n: count, d: total } };
+  }
+
+  let places, label;
+  if (rounding === '10') { places = 1; label = 'tiondel'; }
+  else if (rounding === '100') { places = 2; label = 'hundradel'; }
+  else { places = 3; label = 'tusendel'; }
+
+  const dec = (count / total).toFixed(places);
+  const rounded = parseFloat(dec);
+  const den = Math.pow(10, places);
+  const num = Math.round(rounded * den);
+  const f = formatFraction(num, den);
+
+  return { frac: f, decimal: dec, original: { n: num, d: den } };
+}
+
+// ── Three.js ────────────────────────────────────────────
+const wrap = document.getElementById('canvas-wrap');
+const W = 600, H = 600;
+const cvs = document.getElementById('c');
+
+const renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0ede6);
+
+const camera = new THREE.PerspectiveCamera(34, W / H, 0.1, 200);
+camera.position.set(0, 5, 30);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(10, 18, 14);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9ab8ff, 0.35);
+fill.position.set(-10, -8, -10);
+scene.add(fill);
+
+const group = new THREE.Group();
+group.rotation.x = 0.42;
+group.rotation.y = -0.65;
+scene.add(group);
+
+const half = (N - 1) / 2;
+const geo = new THREE.BoxGeometry(1, 1, 1);
+const blueMat = new THREE.MeshLambertMaterial({ color: 0x3a8fd4 });
+const grayMat = new THREE.MeshLambertMaterial({ color: 0xe8e8e8 });
+
+// Edge lines (created once, never change)
+const edgeGeo = new THREE.EdgesGeometry(geo);
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.8 });
+const dummy = new THREE.Object3D();
+
+surfacePositions.forEach(p => {
+  const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+  edges.position.set(p.x - half, p.y - half, p.z - half);
+  group.add(edges);
+});
+
+let blueMesh = null, grayMesh = null;
+
+// Fill order: layer by layer (z), row by row (y), cube by cube (x)
+// index = z*100 + y*10 + x   →   cube is colored if index < task.colored
+function isFilled(x, y, z, count) {
+  return (z * 100 + y * 10 + x) < count;
+}
+
+function applyColors(task) {
+  if (blueMesh) { group.remove(blueMesh); blueMesh.dispose(); }
+  if (grayMesh) { group.remove(grayMesh); grayMesh.dispose(); }
+
+  const bluePos = [], grayPos = [];
+  surfacePositions.forEach(p => {
+    (isFilled(p.x, p.y, p.z, task.colored) ? bluePos : grayPos).push(p);
+  });
+
+  if (bluePos.length > 0) {
+    blueMesh = new THREE.InstancedMesh(geo, blueMat, bluePos.length);
+    bluePos.forEach((p, i) => {
+      dummy.position.set(p.x - half, p.y - half, p.z - half);
+      dummy.updateMatrix();
+      blueMesh.setMatrixAt(i, dummy.matrix);
+    });
+    blueMesh.instanceMatrix.needsUpdate = true;
+    group.add(blueMesh);
+  }
+
+  if (grayPos.length > 0) {
+    grayMesh = new THREE.InstancedMesh(geo, grayMat, grayPos.length);
+    grayPos.forEach((p, i) => {
+      dummy.position.set(p.x - half, p.y - half, p.z - half);
+      dummy.updateMatrix();
+      grayMesh.setMatrixAt(i, dummy.matrix);
+    });
+    grayMesh.instanceMatrix.needsUpdate = true;
+    group.add(grayMesh);
+  }
+}
+
+// ── Drag to rotate ───────────────────────────────────────
+let dragging = false, px = 0, py = 0;
+let vx = 0, vy = 0;
+
+function onDown(x, y) { dragging = true; px = x; py = y; vx = 0; vy = 0; }
+function onMove(x, y) {
+  if (!dragging) return;
+  const dx = x - px, dy = y - py;
+  group.rotation.y += dx * 0.01;
+  group.rotation.x += dy * 0.01;
+  vx = dx * 0.01;
+  vy = dy * 0.01;
+  px = x; py = y;
+}
+function onUp() { dragging = false; }
+
+wrap.addEventListener('mousedown', e => onDown(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', onUp);
+wrap.addEventListener('touchstart', e => {
+  const t = e.touches[0]; onDown(t.clientX, t.clientY);
+}, { passive: true });
+wrap.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0]; onMove(t.clientX, t.clientY);
+}, { passive: false });
+wrap.addEventListener('touchend', onUp);
+
+// ── Render loop ──────────────────────────────────────────
+(function animate() {
+  requestAnimationFrame(animate);
+  if (!dragging) {
+    group.rotation.y += vx; vx *= 0.92;
+    group.rotation.x += vy; vy *= 0.92;
+  }
+  renderer.render(scene, camera);
+})();
+
+// ── Dots ─────────────────────────────────────────────────
+const dotsEl = document.getElementById('dots');
+
+function buildDots() {
+  dotsEl.innerHTML = '';
+  tasks.forEach((_, idx) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (idx === currentTask ? ' active' : '');
+    d.addEventListener('click', () => { currentTask = idx; updateUI(); });
+    dotsEl.appendChild(d);
+  });
+}
+
+function updateDots() {
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.className = 'dot' + (i === currentTask ? ' active' : '');
+  });
+}
+
+// ── Rounding controls ───────────────────────────────────
+const roundBtns = document.querySelectorAll('.rounding-controls button');
+roundBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    roundBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRounding = btn.dataset.round;
+    if (answerVisible) showAnswer();
+  });
+});
+
+function showAnswer() {
+  const task = tasks[currentTask];
+  const ans = getAnswerText(task, currentRounding);
+  const box = document.getElementById('answerBox');
+
+  let html = '';
+  // Original fraction
+  if (currentRounding !== 'exact') {
+    html += '<div style="font-size:13px;color:#888;margin-bottom:4px;">Exakt: ' +
+      task.colored + '/1\u2009000</div>';
+  }
+
+  // Main fraction
+  html += '<span style="font-size:16px;color:#666;">' + ans.original.n + '/' + ans.original.d + '</span>';
+
+  // Simplified
+  if (ans.frac.n !== ans.original.n || ans.frac.d !== ans.original.d) {
+    html += ' <span style="font-size:16px;color:#888;">= </span>';
+    html += '<span style="font-size:20px;color:#c0392b;font-weight:bold;">' + ans.frac.n + '/' + ans.frac.d + '</span>';
+  }
+
+  // Decimal
+  html += '<br><span style="font-size:15px;color:#555;">= ' + ans.decimal + '</span>';
+
+  box.innerHTML = html;
+}
+
+// ── UI ───────────────────────────────────────────────────
+function updateUI() {
+  answerVisible = false;
+  currentRounding = 'exact';
+  roundBtns.forEach(b => b.classList.toggle('active', b.dataset.round === 'exact'));
+
+  document.getElementById('taskInfo').textContent =
+    'Uppgift ' + (currentTask + 1) + ' / ' + tasks.length;
+  document.getElementById('answerBox').innerHTML = '';
+  document.getElementById('showAnsBtn').textContent = 'Visa svar';
+  document.getElementById('roundingControls').style.display = 'none';
+
+  applyColors(tasks[currentTask]);
+  updateDots();
+}
+
+document.getElementById('showAnsBtn').addEventListener('click', () => {
+  answerVisible = !answerVisible;
+  const btn = document.getElementById('showAnsBtn');
+  const roundCtrl = document.getElementById('roundingControls');
+
+  if (answerVisible) {
+    btn.textContent = 'Dolj svar';
+    roundCtrl.style.display = 'flex';
+    showAnswer();
+  } else {
+    btn.textContent = 'Visa svar';
+    roundCtrl.style.display = 'none';
+    document.getElementById('answerBox').innerHTML = '';
+  }
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  currentTask = (currentTask - 1 + tasks.length) % tasks.length;
+  updateUI();
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  currentTask = (currentTask + 1) % tasks.length;
+  updateUI();
+});
+
+document.getElementById('newBtn').addEventListener('click', () => {
+  const count = parseInt(document.getElementById('numSelect').value);
+  currentTask = 0;
+  generateTasks(count);
+  buildDots();
+  updateUI();
+});
+
+// ── Init ─────────────────────────────────────────────────
+generateTasks(5);
+buildDots();
+updateUI();
+</script>
+
+<p style="margin-top:20px;font-size:11px;color:#bbb;text-align:center;">
+  <a href="https://github.com/cenmir/brakkuber" style="color:#bbb;text-decoration:none;">Mirza Cenanovic</a>
+</p>
+
+</body>
 </html>
